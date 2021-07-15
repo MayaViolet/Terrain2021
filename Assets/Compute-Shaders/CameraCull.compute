@@ -1,0 +1,39 @@
+﻿// Input
+StructuredBuffer<float4> _Points;
+uint _PointCount;
+
+// Output
+AppendStructuredBuffer<float4> _Visible;
+
+// Parameters
+StructuredBuffer<float3> _PlaneOrigins;
+StructuredBuffer<float3> _PlaneNormals;
+static const uint _PlaneCount = 5; // Const so loop can unroll
+
+#pragma kernel CameraCull
+[numthreads(128,1,1)]
+void CameraCull (uint3 id : SV_DispatchThreadID)
+{
+	if (id.x >= _PointCount)
+    {
+        return; // Incoherent in highest group but coherent for all others
+    }
+
+    float3 p = _Points[id.x].xyz;
+
+    for (uint i = 0; i < _PlaneCount; i++)
+    {
+        float3 origin = _PlaneOrigins[i];
+        float3 normal = _PlaneNormals[i];
+
+        // Get sign of plane to point distance
+        float3 relative = p - origin;
+        // Cull if point outside any planes
+        if (dot(relative, normal) < 0)
+        {
+            return; // Can be coherent since thread id maps to tiles spatially
+        }
+    }
+
+    _Visible.Append(float4(p.x, p.y, p.z, 1));
+}
